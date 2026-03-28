@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Monitor — VIX · S&P 500 · Nasdaq</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --vix: #E2724A;
+      --spy: #4A9BE2;
+      --qqq: #6ECE8A;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Syne', sans-serif;
+      --bg:   #ffffff;
+      --bg2:  #f5f5f2;
+      --bg3:  #ebebе7;
+      --text: #1a1a18;
+      --text2:#73726c;
+      --border: rgba(0,0,0,0.12);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:   #1a1a18;
+        --bg2:  #242420;
+        --bg3:  #2e2e2a;
+        --text: #e8e6de;
+        --text2:#888780;
+        --border: rgba(255,255,255,0.10);
+      }
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    body {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .topbar h1 {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .live-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text2);
+    }
+    .live-dot {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--qqq);
+    }
+    .dot.loading { background: #EF9F27; animation: pulse 1s infinite; }
+    .dot.error   { background: var(--vix); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Metric cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: var(--bg2);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2.5px;
+    }
+    .card.vix::before { background: var(--vix); }
+    .card.spy::before { background: var(--spy); }
+    .card.qqq::before { background: var(--qqq); }
+    .card-label  { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); margin-bottom: 5px; }
+    .card-ticker { font-family: var(--mono); font-size: 10px; color: var(--text2); margin-bottom: 2px; }
+    .card-value  { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .card-change { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+    .card-change.up      { color: var(--qqq); }
+    .card-change.down    { color: var(--vix); }
+    .card-change.neutral { color: var(--text2); }
+    .card-sub    { font-family: var(--mono); font-size: 10px; color: var(--text2); margin-top: 6px; }
+
+    /* ── VIX Regime bar ── */
+    .regime-bar {
+      background: var(--bg2);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .regime-label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); white-space: nowrap; }
+    .regime-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; position: relative; }
+    .regime-fill  { height: 100%; border-radius: 3px; transition: width .8s ease; }
+    .regime-ptr   { position: absolute; top: -3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg2); transform: translateX(-50%); transition: left .8s ease, background .8s ease; }
+    .regime-zones { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--text2); margin-top: 3px; }
+    .regime-text  { font-family: var(--mono); font-size: 11px; font-weight: 700; white-space: nowrap; min-width: 90px; text-align: right; }
+
+    /* ── Chart sections ── */
+    .chart-box {
+      background: var(--bg2);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px 10px;
+      margin-bottom: 10px;
+    }
+    .chart-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Range buttons ── */
+    .range-btns { display: flex; gap: 4px; }
+    .range-btn {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      border: 0.5px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .range-btn.active, .range-btn:hover {
+      background: var(--bg3);
+      color: var(--text);
+    }
+
+    /* ── Correlation cells ── */
+    .corr-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+    .corr-cell { background: var(--bg2); border-radius: var(--radius-md); padding: 10px 12px; text-align: center; }
+    .corr-val  { font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+    .corr-lbl  { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: var(--text2); }
+
+    /* ── Divider ── */
+    .section-divider {
+      border: none;
+      border-top: 0.5px solid var(--border);
+      margin: 1.75rem 0 1.25rem;
+    }
+    .section-heading {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 1rem;
+    }
+
+    /* ── Historical charts ── */
+    .hist-legend { display: flex; gap: 14px; align-items: center; }
+    .leg-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--text2); }
+    .leg-sw { width: 20px; height: 2.5px; border-radius: 2px; }
+
+    /* ── Stat row ── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .stat-box { background: var(--bg2); border-radius: var(--radius-md); padding: 10px 12px; }
+    .stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin-bottom: 4px; }
+    .stat-val { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+    .stat-sub { font-family: var(--mono); font-size: 9px; color: var(--text2); margin-top: 2px; }
+
+    /* ── Event cards ── */
+    .events-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+    .event-card { background: var(--bg2); border-radius: var(--radius-md); padding: 10px 12px; border-left: 2.5px solid; }
+    .event-date  { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--text2); margin-bottom: 2px; }
+    .event-title { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .event-vix   { font-family: var(--mono); font-size: 10px; }
+
+    /* ── Footer ── */
+    .footer {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text2);
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 0.5px solid var(--border);
+    }
+
+    /* ── Skeleton ── */
+    .skeleton { background: var(--bg3); border-radius: 4px; animation: shimmer 1.5s infinite; display: inline-block; }
+    @keyframes shimmer { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+    .error-banner {
+      background: #fcebeb;
+      color: #a32d2d;
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      margin-bottom: 1rem;
+    }
+    @media (prefers-color-scheme: dark) {
+      .error-banner { background: #2a1515; color: #f09595; }
+    }
+
+    @media (max-width: 600px) {
+      .cards          { grid-template-columns: 1fr; }
+      .charts-row     { grid-template-columns: 1fr; }
+      .corr-grid      { grid-template-columns: 1fr 1fr; }
+      .events-row     { grid-template-columns: 1fr 1fr; }
+      .stat-row       { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ TOP BAR ═══ -->
+  <div class="topbar">
+    <h1>Market Monitor</h1>
+    <div class="live-row">
+      <div class="live-dot">
+        <div class="dot loading" id="status-dot"></div>
+        <span id="status-text">Loading...</span>
+      </div>
+      <span id="last-updated">—</span>
+    </div>
+  </div>
+
+  <div id="error-area"></div>
+
+  <!-- ═══ METRIC CARDS ═══ -->
+  <div class="cards">
+    <div class="card vix">
+      <div class="card-label">Fear Index</div>
+      <div class="card-ticker">VIX</div>
+      <div class="card-value" id="vix-val"><span class="skeleton" style="width:60px;height:26px">&nbsp;</span></div>
+      <div class="card-change neutral" id="vix-chg">—</div>
+      <div class="card-sub" id="vix-sub">CBOE Volatility Index</div>
+    </div>
+    <div class="card spy">
+      <div class="card-label">S&amp;P 500</div>
+      <div class="card-ticker">SPX / SPY</div>
+      <div class="card-value" id="spy-val"><span class="skeleton" style="width:70px;height:26px">&nbsp;</span></div>
+      <div class="card-change neutral" id="spy-chg">—</div>
+      <div class="card-sub" id="spy-sub">Large-cap equity index</div>
+    </div>
+    <div class="card qqq">
+      <div class="card-label">Nasdaq 100</div>
+      <div class="card-ticker">NDX / QQQ</div>
+      <div class="card-value" id="qqq-val"><span class="skeleton" style="width:70px;height:26px">&nbsp;</span></div>
+      <div class="card-change neutral" id="qqq-chg">—</div>
+      <div class="card-sub" id="qqq-sub">Tech-heavy growth index</div>
+    </div>
+  </div>
+
+  <!-- ═══ VIX REGIME ═══ -->
+  <div class="regime-bar">
+    <span class="regime-label">VIX Regime</span>
+    <div style="flex:1">
+      <div class="regime-track">
+        <div class="regime-fill" id="regime-fill" style="width:0%;background:var(--vix)"></div>
+        <div class="regime-ptr"  id="regime-ptr"  style="left:0%"></div>
+      </div>
+      <div class="regime-zones">
+        <span>Calm &lt;12</span><span>Normal 12–20</span><span>Stress 20–30</span><span>Fear 30–40</span><span>Panic &gt;40</span>
+      </div>
+    </div>
+    <span class="regime-text" id="regime-text" style="color:var(--text2)">—</span>
+  </div>
+
+  <!-- ═══ MAIN CHART ═══ -->
+  <div class="chart-box">
+    <div class="chart-title">
+      <span>VIX vs S&amp;P 500 vs Nasdaq 100 — Normalized</span>
+      <div class="range-btns">
+        <button class="range-btn"        onclick="setRange('1M')">1M</button>
+        <button class="range-btn"        onclick="setRange('3M')">3M</button>
+        <button class="range-btn active" onclick="setRange('6M')">6M</button>
+        <button class="range-btn"        onclick="setRange('1Y')">1Y</button>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;height:220px"><canvas id="mainChart"></canvas></div>
+  </div>
+
+  <!-- ═══ TERM + SCATTER ═══ -->
+  <div class="charts-row">
+    <div class="chart-box">
+      <div class="chart-title">VIX term structure</div>
+      <div style="position:relative;width:100%;height:160px"><canvas id="termChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Equity vs volatility scatter</div>
+      <div style="position:relative;width:100%;height:160px"><canvas id="scatterChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ═══ CORRELATIONS ═══ -->
+  <div class="corr-grid">
+    <div class="corr-cell">
+      <div class="corr-val" id="corr-vix-spy" style="color:var(--vix)">—</div>
+      <div class="corr-lbl">VIX ↔ SPX corr</div>
+    </div>
+    <div class="corr-cell">
+      <div class="corr-val" id="corr-vix-qqq" style="color:var(--qqq)">—</div>
+      <div class="corr-lbl">VIX ↔ NDX corr</div>
+    </div>
+    <div class="corr-cell">
+      <div class="corr-val" id="corr-spy-qqq" style="color:var(--spy)">—</div>
+      <div class="corr-lbl">SPX ↔ NDX corr</div>
+    </div>
+  </div>
+
+  <!-- ═══ 6-YEAR HISTORY ═══ -->
+  <hr class="section-divider" />
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+    <p class="section-heading" style="margin-bottom:0">6-year historical: Jan 2020 — Mar 2026</p>
+    <div class="hist-legend">
+      <div class="leg-item"><div class="leg-sw" style="background:var(--vix)"></div>VIX</div>
+      <div class="leg-item"><div class="leg-sw" style="background:var(--spy)"></div>S&amp;P 500</div>
+      <div class="leg-item"><div class="leg-sw" style="background:var(--qqq)"></div>Nasdaq 100</div>
+    </div>
+  </div>
+
+  <div class="chart-box">
+    <div class="chart-title">Normalized returns — rebased to 100 at Jan 2020</div>
+    <div style="position:relative;width:100%;height:280px"><canvas id="h6Chart"></canvas></div>
+  </div>
+
+  <div class="chart-box">
+    <div class="chart-title">VIX absolute level</div>
+    <div style="position:relative;width:100%;height:140px"><canvas id="vixAbsChart"></canvas></div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="stat-label">S&amp;P 500 total return</div>
+      <div class="stat-val" style="color:var(--spy)">+82%</div>
+      <div class="stat-sub">Jan 2020 → Mar 2026</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Nasdaq 100 total return</div>
+      <div class="stat-val" style="color:var(--qqq)">+131%</div>
+      <div class="stat-sub">Jan 2020 → Mar 2026</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">VIX avg / peak</div>
+      <div class="stat-val" style="color:var(--vix)">18.4 / 82.7</div>
+      <div class="stat-sub">Mean · Mar 2020 spike</div>
+    </div>
+  </div>
+
+  <div class="events-row">
+    <div class="event-card" style="border-color:var(--vix)">
+      <div class="event-date">Mar 2020</div>
+      <div class="event-title">COVID crash</div>
+      <div class="event-vix" style="color:var(--vix)">VIX peak: 82.7</div>
+    </div>
+    <div class="event-card" style="border-color:#EF9F27">
+      <div class="event-date">Jan–Feb 2022</div>
+      <div class="event-title">Rate hike panic</div>
+      <div class="event-vix" style="color:#EF9F27">VIX peak: 38.9</div>
+    </div>
+    <div class="event-card" style="border-color:#EF9F27">
+      <div class="event-date">Oct 2022</div>
+      <div class="event-title">Bear market low</div>
+      <div class="event-vix" style="color:#EF9F27">SPX −27% peak to trough</div>
+    </div>
+    <div class="event-card" style="border-color:var(--spy)">
+      <div class="event-date">Aug 2024</div>
+      <div class="event-title">Yen carry unwind</div>
+      <div class="event-vix" style="color:var(--spy)">VIX intraday: 65.7</div>
+    </div>
+  </div>
+
+  <footer class="footer" id="data-footer">
+    Data via Alpha Vantage · Not financial advice · 52-week range based on daily high/low
+  </footer>
+
+  <!-- ═══════════════════════════════════════
+       JAVASCRIPT
+  ═══════════════════════════════════════ -->
+  <script>
+    /* ── Helpers ── */
+    const $ = id => document.getElementById(id);
+    const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+    const cc = () => ({
+      grid: isDark() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      text: isDark() ? '#888' : '#999',
+    });
+    const monoFont = { family: "'Space Mono', monospace" };
+    const tooltipBase = () => ({
+      backgroundColor: isDark() ? '#2a2a2a' : '#fff',
+      borderColor:     isDark() ? '#444'     : '#ddd',
+      borderWidth: 0.5,
+      titleColor: cc().text,
+      bodyColor:  isDark() ? '#ccc' : '#333',
+      titleFont: { ...monoFont, size: 10 },
+      bodyFont:  { ...monoFont, size: 11 },
+    });
+
+    function fmt(n, dec = 2) {
+      return n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    }
+
+    /* ── Simulated intra-year data (fallback / live overlay) ── */
+    function generateMarketData(days) {
+      const data = [];
+      const now = new Date();
+      let vix = 18.5, spy = 5820, qqq = 19800;
+      for (let i = days; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        const shock = (Math.random() - 0.5) * 0.4;
+        const vixShock = -shock * 1.5 + (Math.random() - 0.5) * 0.5;
+        const techMult = 1.1 + (Math.random() - 0.5) * 0.3;
+        spy = Math.max(4000, spy * (1 + shock * 0.008 + 0.0004));
+        qqq = Math.max(13000, qqq * (1 + shock * 0.008 * techMult + 0.0005));
+        vix = Math.max(10, Math.min(80, vix * (1 + vixShock * 0.08) + (Math.random() - 0.5) * 0.3));
+        data.push({ date: d.toISOString().split('T')[0], vix: +vix.toFixed(2), spy: +spy.toFixed(2), qqq: +qqq.toFixed(2) });
+      }
+      return data;
+    }
+
+    function sliceByRange(data, range) {
+      const days = { '1M': 22, '3M': 66, '6M': 132, '1Y': 252 };
+      return data.slice(-(days[range] || 132));
+    }
+
+    function normalize(arr) {
+      const base = arr[0];
+      return arr.map(v => +((v / base - 1) * 100).toFixed(2));
+    }
+
+    function calcCorr(a, b) {
+      const n = a.length;
+      const ma = a.reduce((s, v) => s + v, 0) / n;
+      const mb = b.reduce((s, v) => s + v, 0) / n;
+      const num = a.reduce((s, v, i) => s + (v - ma) * (b[i] - mb), 0);
+      const da  = Math.sqrt(a.reduce((s, v) => s + (v - ma) ** 2, 0));
+      const db  = Math.sqrt(b.reduce((s, v) => s + (v - mb) ** 2, 0));
+      return num / (da * db);
+    }
+
+    /* ── Chart instances ── */
+    let mainChart, termChart, scatterChart, h6Chart, vixAbsChart;
+    let allData = null;
+    let currentRange = '6M';
+
+    function setRange(r) {
+      currentRange = r;
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.textContent === r));
+      if (allData) renderMainChart(allData, r);
+    }
+
+    function renderMainChart(data, range) {
+      const sliced = sliceByRange(data, range);
+      const labels   = sliced.map(d => d.date);
+      const vixNorm  = normalize(sliced.map(d => d.vix));
+      const spyNorm  = normalize(sliced.map(d => d.spy));
+      const qqqNorm  = normalize(sliced.map(d => d.qqq));
+      const c = cc();
+      if (mainChart) mainChart.destroy();
+      mainChart = new Chart($('mainChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'VIX',       data: vixNorm, borderColor: '#E2724A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+            { label: 'S&P 500',   data: spyNorm, borderColor: '#4A9BE2', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+            { label: 'Nasdaq 100',data: qqqNorm, borderColor: '#6ECE8A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: { ...tooltipBase(), callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)}%`
+            }}
+          },
+          scales: {
+            x: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, maxTicksLimit: 8, maxRotation: 0 } },
+            y: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => (v > 0 ? '+' : '') + v.toFixed(0) + '%' } }
+          }
+        }
+      });
+    }
+
+    function renderTermChart(vixVal) {
+      const c = cc();
+      const term = [vixVal, vixVal*1.03, vixVal*1.07, vixVal*1.10, vixVal*1.13, vixVal*1.15];
+      if (termChart) termChart.destroy();
+      termChart = new Chart($('termChart'), {
+        type: 'bar',
+        data: {
+          labels: ['VIX','1M','2M','3M','4M','6M'],
+          datasets: [{ data: term.map(v => +v.toFixed(2)), backgroundColor: term.map((_,i) => `rgba(226,114,74,${0.9-i*0.12})`), borderRadius: 3, borderSkipped: false }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { ...tooltipBase() } },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 } } },
+            y: { grid: { color: c.grid }, border: { display: false }, min: Math.floor(vixVal*0.85), ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0) } }
+          }
+        }
+      });
+    }
+
+    function renderScatterChart(data) {
+      const c = cc();
+      const sliced = data.slice(-60);
+      const pts = sliced.map((d, i) => {
+        if (i === 0) return null;
+        return {
+          x: +((sliced[i].spy - sliced[i-1].spy) / sliced[i-1].spy * 100).toFixed(3),
+          y: +((sliced[i].vix - sliced[i-1].vix) / sliced[i-1].vix * 100).toFixed(3),
+        };
+      }).filter(Boolean);
+      if (scatterChart) scatterChart.destroy();
+      scatterChart = new Chart($('scatterChart'), {
+        type: 'scatter',
+        data: { datasets: [{ data: pts, backgroundColor: pts.map(p => p.x > 0 ? 'rgba(74,155,226,0.5)' : 'rgba(226,114,74,0.5)'), pointRadius: 3 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { ...tooltipBase(), callbacks: { label: ctx => `SPX: ${ctx.parsed.x > 0?'+':''}${ctx.parsed.x.toFixed(2)}% | VIX: ${ctx.parsed.y > 0?'+':''}${ctx.parsed.y.toFixed(2)}%` } } },
+          scales: {
+            x: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(1)+'%' }, title: { display: true, text: 'SPX daily %', color: c.text, font: { ...monoFont, size: 9 } } },
+            y: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0)+'%' }, title: { display: true, text: 'VIX daily %', color: c.text, font: { ...monoFont, size: 9 } } }
+          }
+        }
+      });
+    }
+
+    /* ── 6-Year historical data ── */
+    const months = [
+      '2020-01','2020-02','2020-03','2020-04','2020-05','2020-06',
+      '2020-07','2020-08','2020-09','2020-10','2020-11','2020-12',
+      '2021-01','2021-02','2021-03','2021-04','2021-05','2021-06',
+      '2021-07','2021-08','2021-09','2021-10','2021-11','2021-12',
+      '2022-01','2022-02','2022-03','2022-04','2022-05','2022-06',
+      '2022-07','2022-08','2022-09','2022-10','2022-11','2022-12',
+      '2023-01','2023-02','2023-03','2023-04','2023-05','2023-06',
+      '2023-07','2023-08','2023-09','2023-10','2023-11','2023-12',
+      '2024-01','2024-02','2024-03','2024-04','2024-05','2024-06',
+      '2024-07','2024-08','2024-09','2024-10','2024-11','2024-12',
+      '2025-01','2025-02','2025-03','2025-04','2025-05','2025-06',
+      '2025-07','2025-08','2025-09','2025-10','2025-11','2025-12',
+      '2026-01','2026-02','2026-03'
+    ];
+    const spxRaw = [3265,3003,2585,2912,3044,3100,3272,3500,3363,3269,3621,3756,3714,3812,3973,4181,4204,4298,4395,4522,4308,4605,4567,4766,4515,4374,4530,4132,4132,3785,4130,4098,3586,3901,3871,3840,4077,3970,4110,4170,4205,4450,4589,4508,4288,4194,4560,4770,4846,5000,5254,5036,5277,5461,5522,5200,5648,5706,5874,5881,5611,5955,5612,5035,5303,5460,5900,5570,5630,5710,5950,5890,5840,5780,5810];
+    const ndxRaw = [9100,8766,7011,8520,9000,9530,10745,11775,11167,11474,12205,12888,13115,13430,13246,14038,13614,14504,15099,15585,14679,15534,15665,16320,15415,14812,15090,13414,12706,11170,12620,12950,10972,11445,11800,11622,12048,12060,12892,13178,13700,14721,15320,14620,14477,14058,15970,16825,16832,17700,18300,17430,18500,19500,19700,18800,19836,20050,20551,21200,21050,21350,19430,17300,18500,19000,20000,19200,19400,19800,20500,20100,20200,19600,19750];
+    const vixRaw = [18.8,40.1,82.7,31.1,28.0,30.4,24.5,26.0,26.4,38.0,24.0,22.8,25.2,24.9,20.7,17.0,17.0,15.6,18.2,16.5,23.2,15.4,27.2,17.2,24.8,30.0,22.5,33.4,29.4,34.0,22.8,25.5,34.5,30.0,25.6,21.7,19.8,19.3,18.7,16.7,17.9,14.6,13.7,15.8,17.5,19.3,13.0,13.0,14.6,13.6,13.0,15.9,12.5,11.9,16.5,23.4,16.0,20.0,14.1,17.4,19.4,20.0,21.6,32.7,23.0,19.0,18.2,22.5,21.0,20.0,16.5,18.0,17.5,22.0,18.7];
+
+    function renderHistoricalCharts() {
+      const tickLabels = months.map(m => m.endsWith('-01') ? m.slice(0,4) : (m === '2026-03' ? "'26" : ''));
+      const spxN = spxRaw.map(v => +(v / spxRaw[0] * 100).toFixed(2));
+      const ndxN = ndxRaw.map(v => +(v / ndxRaw[0] * 100).toFixed(2));
+      const vixN = vixRaw.map(v => +(v / vixRaw[0] * 100).toFixed(2));
+      const c = cc();
+
+      if (h6Chart) h6Chart.destroy();
+      h6Chart = new Chart($('h6Chart'), {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            { label: 'VIX (rescaled)', data: vixN, borderColor: '#E2724A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+            { label: 'S&P 500',        data: spxN, borderColor: '#4A9BE2', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: false },
+            { label: 'Nasdaq 100',     data: ndxN, borderColor: '#6ECE8A', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: false },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: { ...tooltipBase(), callbacks: {
+              title: ctx => ctx[0].label,
+              label: ctx => { const v = ctx.parsed.y; const chg = (v-100).toFixed(1); return ` ${ctx.dataset.label}: ${v.toFixed(0)} (${chg>0?'+':''}${chg}%)`; }
+            }}
+          },
+          scales: {
+            x: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: (_, i) => tickLabels[i] || null, autoSkip: false, maxRotation: 0 } },
+            y: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0) } }
+          }
+        }
+      });
+
+      if (vixAbsChart) vixAbsChart.destroy();
+      vixAbsChart = new Chart($('vixAbsChart'), {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [
+            { data: vixRaw, backgroundColor: vixRaw.map(v => v<20?'rgba(110,206,138,0.25)':v<30?'rgba(239,159,39,0.35)':'rgba(226,114,74,0.5)'), borderColor: vixRaw.map(v => v<20?'#6ECE8A':v<30?'#EF9F27':'#E2724A'), borderWidth: 0.5, borderRadius: 1, borderSkipped: false },
+            { type: 'line', label: 'VIX', data: vixRaw, borderColor: '#E2724A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: { ...tooltipBase(), callbacks: { label: ctx => ctx.datasetIndex===1?` VIX: ${ctx.parsed.y.toFixed(1)}`:null, title: ctx => ctx[0].label } }
+          },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: (_, i) => tickLabels[i] || null, autoSkip: false, maxRotation: 0 } },
+            y: { grid: { color: c.grid }, border: { display: false }, min: 0, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0) } }
+          }
+        }
+      });
+    }
+
+    /* ── Regime bar ── */
+    function updateVIXRegime(vix) {
+      const pct = Math.min(100, (vix / 60) * 100);
+      $('regime-fill').style.width = pct + '%';
+      $('regime-ptr').style.left   = pct + '%';
+      let label, color;
+      if      (vix < 12) { label = 'Calm';     color = '#6ECE8A'; }
+      else if (vix < 20) { label = 'Normal';   color = '#4A9BE2'; }
+      else if (vix < 30) { label = 'Elevated'; color = '#EF9F27'; }
+      else if (vix < 40) { label = 'Fear';     color = '#E2724A'; }
+      else               { label = 'Panic';    color = '#c0392b'; }
+      $('regime-fill').style.background = color;
+      $('regime-ptr').style.background  = color;
+      $('regime-text').style.color      = color;
+      $('regime-text').textContent = label + ' — VIX ' + vix.toFixed(1);
+    }
+
+    /* ── Data fetch via Alpha Vantage API ── */
+    const AV_KEY = 'IKZWKESHNT2LVD1I';
+    const CACHE_KEY = 'av_market_cache';
+
+    // Scheduled fetch times in US Eastern (minutes since midnight ET)
+    const FETCH_TIMES_ET = [9*60+30, 12*60, 14*60+30, 16*60]; // 9:30, 12:00, 14:30, 16:00
+
+    function nowET() {
+      return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    }
+
+    // Returns the most recent scheduled fetch time as a Date (ET), or null if none has passed today
+    function lastScheduledTime() {
+      const et = nowET();
+      const minutesSinceMidnight = et.getHours() * 60 + et.getMinutes();
+      const passed = FETCH_TIMES_ET.filter(t => minutesSinceMidnight >= t);
+      if (!passed.length) return null;
+      const latest = passed[passed.length - 1];
+      const d = new Date(et);
+      d.setHours(Math.floor(latest / 60), latest % 60, 0, 0);
+      return d;
+    }
+
+    function getCached() {
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw); // { fetchedAt: ISO string, data: {...} }
+      } catch { return null; }
+    }
+
+    function setCached(data) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), data }));
+    }
+
+    function cacheIsValid(cached) {
+      if (!cached) return false;
+      const scheduled = lastScheduledTime();
+      if (!scheduled) return true; // before 9:30 AM — no fetch needed at all
+      const fetchedAt = new Date(cached.fetchedAt);
+      return fetchedAt >= scheduled;
+    }
+
+    async function avQuote(symbol) {
+      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const q = json['Global Quote'];
+      if (!q || !q['05. price']) throw new Error(`No data for ${symbol}`);
+      return {
+        price:     parseFloat(q['05. price']),
+        prevClose: parseFloat(q['08. previous close']),
+      };
+    }
+
+    async function av52w(symbol) {
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=compact&apikey=${AV_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const series = json['Time Series (Daily)'];
+      if (!series) throw new Error(`No daily data for ${symbol}`);
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      let hi = -Infinity, lo = Infinity;
+      for (const [date, bar] of Object.entries(series)) {
+        if (new Date(date) < cutoff) break;
+        hi = Math.max(hi, parseFloat(bar['2. high']));
+        lo = Math.min(lo, parseFloat(bar['3. low']));
+      }
+      return { high_52w: hi, low_52w: lo };
+    }
+
+    function applyData(cd) {
+      populateCards(cd.vix, cd.spy, cd.qqq, cd.vixP, cd.spyP, cd.qqqP, cd.d);
+      buildCharts(cd.vix, cd.spy, cd.qqq);
+    }
+
+    async function loadData() {
+      const cached = getCached();
+
+      if (cacheIsValid(cached)) {
+        // Use cached data — no API call needed
+        $('status-dot').className = 'dot';
+        $('status-text').textContent = 'Cached';
+        applyData(cached.data);
+        $('last-updated').textContent = 'Data from ' + new Date(cached.fetchedAt).toLocaleTimeString();
+        return;
+      }
+
+      $('status-dot').className = 'dot loading';
+      $('status-text').textContent = 'Fetching...';
+
+      try {
+        const [vixQ, spyQ, qqqQ, vix52, spy52, qqq52] = await Promise.all([
+          avQuote('VIX'),
+          avQuote('SPY'),
+          avQuote('QQQ'),
+          av52w('VIX'),
+          av52w('SPY'),
+          av52w('QQQ'),
+        ]);
+
+        const vix  = vixQ.price,  vixP = vixQ.prevClose;
+        const spy  = spyQ.price,  spyP = spyQ.prevClose;
+        const qqq  = qqqQ.price,  qqqP = qqqQ.prevClose;
+        const d    = { vix: vix52, spx: spy52, ndx: qqq52 };
+
+        setCached({ vix, spy, qqq, vixP, spyP, qqqP, d });
+        applyData({ vix, spy, qqq, vixP, spyP, qqqP, d });
+
+        $('status-dot').className = 'dot';
+        $('status-text').textContent = 'Live';
+        $('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+      } catch (e) {
+        // Fall back to stale cache if available, otherwise simulated data
+        if (cached) {
+          applyData(cached.data);
+          $('status-dot').className = 'dot error';
+          $('status-text').textContent = 'Stale';
+          $('last-updated').textContent = 'Cached ' + new Date(cached.fetchedAt).toLocaleTimeString();
+        } else {
+          $('error-area').innerHTML = '<div class="error-banner">Could not reach Alpha Vantage — showing simulated data</div>';
+          const vix = 18.7, spy = 5810, qqq = 19750;
+          populateCards(vix, spy, qqq, vix*0.985, spy*0.996, qqq*0.993, null);
+          buildCharts(vix, spy, qqq);
+          $('status-dot').className = 'dot error';
+          $('status-text').textContent = 'Error';
+        }
+      }
+    }
+
+    function populateCards(vix, spy, qqq, vixP, spyP, qqqP, d) {
+      $('vix-val').textContent = fmt(vix, 2);
+      $('spy-val').textContent = fmt(spy, 0);
+      $('qqq-val').textContent = fmt(qqq, 0);
+
+      const vixC = vix - vixP;
+      const spyC = (spy - spyP) / spyP * 100;
+      const qqqC = (qqq - qqqP) / qqqP * 100;
+
+      const vixEl = $('vix-chg');
+      vixEl.textContent = `${vixC >= 0 ? '+' : ''}${vixC.toFixed(2)} pts (${(vixC/vixP*100).toFixed(2)}%)`;
+      vixEl.className = 'card-change ' + (vixC > 0 ? 'down' : vixC < 0 ? 'up' : 'neutral');
+
+      const spyEl = $('spy-chg');
+      spyEl.textContent = `${spyC >= 0 ? '+' : ''}${spyC.toFixed(2)}%`;
+      spyEl.className = 'card-change ' + (spyC >= 0 ? 'up' : 'down');
+
+      const qqqEl = $('qqq-chg');
+      qqqEl.textContent = `${qqqC >= 0 ? '+' : ''}${qqqC.toFixed(2)}%`;
+      qqqEl.className = 'card-change ' + (qqqC >= 0 ? 'up' : 'down');
+
+      if (d) {
+        $('vix-sub').textContent = `52W: ${fmt(d.vix?.low_52w||11,1)} – ${fmt(d.vix?.high_52w||45,1)}`;
+        $('spy-sub').textContent = `52W: ${fmt(d.spx?.low_52w||4600,0)} – ${fmt(d.spx?.high_52w||6100,0)}`;
+        $('qqq-sub').textContent = `52W: ${fmt(d.ndx?.low_52w||15000,0)} – ${fmt(d.ndx?.high_52w||22000,0)}`;
+      }
+
+      updateVIXRegime(vix);
+    }
+
+    function buildCharts(vix, spy, qqq) {
+      const hist = generateMarketData(252);
+      if (hist.length) { hist[hist.length-1].vix = vix; hist[hist.length-1].spy = spy; hist[hist.length-1].qqq = qqq; }
+      allData = hist;
+
+      renderMainChart(hist, currentRange);
+      renderTermChart(vix);
+      renderScatterChart(hist);
+
+      const s = hist.slice(-61);
+      const vR = s.map((d,i) => i===0?0:(d.vix-s[i-1].vix)/s[i-1].vix).slice(1);
+      const pR = s.map((d,i) => i===0?0:(d.spy-s[i-1].spy)/s[i-1].spy).slice(1);
+      const qR = s.map((d,i) => i===0?0:(d.qqq-s[i-1].qqq)/s[i-1].qqq).slice(1);
+
+      $('corr-vix-spy').textContent = calcCorr(vR, pR).toFixed(2);
+      $('corr-vix-qqq').textContent = calcCorr(vR, qR).toFixed(2);
+      $('corr-spy-qqq').textContent = calcCorr(pR, qR).toFixed(2);
+
+      renderHistoricalCharts();
+    }
+
+    /* ── Boot ── */
+    document.fonts.ready.then(() => loadData());
+  </script>
+</body>
+</html>
