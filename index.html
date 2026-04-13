@@ -225,17 +225,34 @@
     .stat-val { font-family: var(--mono); font-size: 16px; font-weight: 700; }
     .stat-sub { font-family: var(--mono); font-size: 9px; color: var(--text2); margin-top: 2px; }
 
-    /* ── Event cards ── */
+    /* ── Crisis cards ── */
     .events-row {
       display: grid;
       grid-template-columns: repeat(4, minmax(0,1fr));
       gap: 8px;
       margin-bottom: 1rem;
     }
-    .event-card { background: var(--bg2); border-radius: var(--radius-md); padding: 10px 12px; border-left: 2.5px solid; }
-    .event-date  { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--text2); margin-bottom: 2px; }
-    .event-title { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
-    .event-vix   { font-family: var(--mono); font-size: 10px; }
+    .event-card {
+      background: var(--bg2);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      border-left: 3px solid;
+      position: relative;
+      overflow: hidden;
+    }
+    .event-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0.04;
+      background: var(--ec-color, transparent);
+    }
+    .event-date  { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); margin-bottom: 4px; }
+    .event-title { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 8px; line-height: 1.3; }
+    .event-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .event-stat  { display: flex; flex-direction: column; gap: 1px; }
+    .event-stat-label { font-family: var(--mono); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); }
+    .event-stat-val   { font-family: var(--mono); font-size: 12px; font-weight: 700; }
 
     /* ── Footer ── */
     .footer {
@@ -270,6 +287,7 @@
       .charts-row     { grid-template-columns: 1fr; }
       .corr-grid      { grid-template-columns: 1fr 1fr; }
       .events-row     { grid-template-columns: 1fr 1fr; }
+      .event-stats    { grid-template-columns: 1fr 1fr; }
       .stat-row       { grid-template-columns: 1fr; }
     }
   </style>
@@ -398,8 +416,8 @@
   </div>
 
   <div class="chart-box">
-    <div class="chart-title">VIX absolute level</div>
-    <div style="position:relative;width:100%;height:140px"><canvas id="vixAbsChart"></canvas></div>
+    <div class="chart-title">VIX absolute level — regime zones</div>
+    <div style="position:relative;width:100%;height:190px"><canvas id="vixAbsChart"></canvas></div>
   </div>
 
   <div class="stat-row">
@@ -421,25 +439,93 @@
   </div>
 
   <div class="events-row">
-    <div class="event-card" style="border-color:var(--vix)">
-      <div class="event-date">Mar 2020</div>
-      <div class="event-title">COVID crash</div>
-      <div class="event-vix" style="color:var(--vix)">VIX peak: 82.7</div>
+    <div class="event-card" style="border-color:#c0392b;--ec-color:#c0392b">
+      <div class="event-date">Feb – Apr 2020</div>
+      <div class="event-title">COVID Crash</div>
+      <div class="event-stats">
+        <div class="event-stat">
+          <span class="event-stat-label">Peak VIX</span>
+          <span class="event-stat-val" style="color:#c0392b">82.7</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">SPX drop</span>
+          <span class="event-stat-val" style="color:#c0392b">−34%</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Recovery</span>
+          <span class="event-stat-val">148 days</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Trigger</span>
+          <span class="event-stat-val" style="color:var(--text2);font-size:9px">Pandemic lockdowns</span>
+        </div>
+      </div>
     </div>
-    <div class="event-card" style="border-color:#EF9F27">
-      <div class="event-date">Jan–Feb 2022</div>
-      <div class="event-title">Rate hike panic</div>
-      <div class="event-vix" style="color:#EF9F27">VIX peak: 38.9</div>
+    <div class="event-card" style="border-color:#8B1A1A;--ec-color:#8B1A1A">
+      <div class="event-date">Feb 2022</div>
+      <div class="event-title">Russia Invades Ukraine</div>
+      <div class="event-stats">
+        <div class="event-stat">
+          <span class="event-stat-label">Peak VIX</span>
+          <span class="event-stat-val" style="color:#8B1A1A">36.5</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">SPX drop</span>
+          <span class="event-stat-val" style="color:#8B1A1A">−12%</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Recovery</span>
+          <span class="event-stat-val">ongoing</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Trigger</span>
+          <span class="event-stat-val" style="color:var(--text2);font-size:9px">Land war in Europe</span>
+        </div>
+      </div>
     </div>
-    <div class="event-card" style="border-color:#EF9F27">
-      <div class="event-date">Oct 2022</div>
-      <div class="event-title">Bear market low</div>
-      <div class="event-vix" style="color:#EF9F27">SPX −27% peak to trough</div>
+    <div class="event-card" style="border-color:#EF9F27;--ec-color:#EF9F27">
+      <div class="event-date">Jan – Oct 2022</div>
+      <div class="event-title">Fed Rate Hike Bear</div>
+      <div class="event-stats">
+        <div class="event-stat">
+          <span class="event-stat-label">Peak VIX</span>
+          <span class="event-stat-val" style="color:#EF9F27">34.5</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">SPX drop</span>
+          <span class="event-stat-val" style="color:#EF9F27">−27%</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Recovery</span>
+          <span class="event-stat-val">450 days</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Trigger</span>
+          <span class="event-stat-val" style="color:var(--text2);font-size:9px">Fed 425bp in 12 months</span>
+        </div>
+      </div>
     </div>
-    <div class="event-card" style="border-color:var(--spy)">
-      <div class="event-date">Aug 2024</div>
-      <div class="event-title">Yen carry unwind</div>
-      <div class="event-vix" style="color:var(--spy)">VIX intraday: 65.7</div>
+    <div class="event-card" style="border-color:#EF9F27;--ec-color:#EF9F27">
+      <div class="event-date">Apr 2025</div>
+      <div class="event-title">Tariff Shock</div>
+      <div class="event-stats">
+        <div class="event-stat">
+          <span class="event-stat-label">Peak VIX</span>
+          <span class="event-stat-val" style="color:#EF9F27">52.3</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">SPX drop</span>
+          <span class="event-stat-val" style="color:#EF9F27">−19%</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Recovery</span>
+          <span class="event-stat-val">~45 days</span>
+        </div>
+        <div class="event-stat">
+          <span class="event-stat-label">Trigger</span>
+          <span class="event-stat-val" style="color:var(--text2);font-size:9px">Liberation Day tariffs</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -697,36 +783,47 @@
         }
       });
 
-      // VIX spike events above 30 — only show those within the current slice
+      // VIX spike events above 30 — color-coded by cause
       const vixEvents = [
-        { month: '2020-02', label: 'COVID\nfears',            vix: 40.1 },
-        { month: '2020-03', label: 'COVID\ncrash',            vix: 82.7 },
-        { month: '2020-10', label: 'Election +\nCOVID wave 2',vix: 38.0 },
-        { month: '2022-02', label: 'Russia\ninvades Ukraine', vix: 30.0 },
-        { month: '2022-04', label: 'Fed hikes\n+ Ukraine',    vix: 33.4 },
-        { month: '2022-06', label: 'Fed 75bp\nbear market',   vix: 34.0 },
-        { month: '2022-09', label: 'Fed 75bp +\nUK crisis',   vix: 34.5 },
-        { month: '2025-04', label: 'Tariff\nshock',           vix: 32.7 },
+        { month: '2020-02', label: 'COVID\nfears',             vix: 40.1, color: '#c0392b' },
+        { month: '2020-03', label: 'COVID\ncrash',             vix: 82.7, color: '#c0392b' },
+        { month: '2020-10', label: 'Election +\nCOVID wave 2', vix: 38.0, color: '#c0392b' },
+        { month: '2022-02', label: 'Russia\ninvades Ukraine',  vix: 30.0, color: '#8B1A1A' },
+        { month: '2022-04', label: 'Fed hikes\n+ Ukraine',     vix: 33.4, color: '#4A9BE2' },
+        { month: '2022-06', label: 'Fed 75bp\nbear market',    vix: 34.0, color: '#4A9BE2' },
+        { month: '2022-09', label: 'Fed 75bp +\nUK crisis',    vix: 34.5, color: '#4A9BE2' },
+        { month: '2025-04', label: 'Tariff\nshock',            vix: 32.7, color: '#EF9F27' },
       ].filter(ev => mSlice.includes(ev.month));
 
-      const eventAnnotations = {};
+      // Regime band shading
+      const regimeBands = {
+        rCalm:     { type: 'box', yMin: 0,  yMax: 12, backgroundColor: 'rgba(110,206,138,0.07)', borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+        rNormal:   { type: 'box', yMin: 12, yMax: 20, backgroundColor: 'rgba(74,155,226,0.06)',  borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+        rElevated: { type: 'box', yMin: 20, yMax: 30, backgroundColor: 'rgba(239,159,39,0.07)',  borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+        rFear:     { type: 'box', yMin: 30, yMax: 40, backgroundColor: 'rgba(226,114,74,0.09)',  borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+        rPanic:    { type: 'box', yMin: 40, yMax: 90, backgroundColor: 'rgba(192,57,43,0.09)',   borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+      };
+
+      const eventAnnotations = { ...regimeBands };
       vixEvents.forEach((ev, i) => {
         eventAnnotations[`evLine${i}`] = {
           type: 'line',
           xMin: ev.month, xMax: ev.month,
-          borderColor: 'rgba(226,114,74,0.45)',
-          borderWidth: 1,
+          borderColor: ev.color + '70',
+          borderWidth: 1.5,
           borderDash: [3, 3],
         };
         eventAnnotations[`evLabel${i}`] = {
           type: 'label',
           xValue: ev.month,
-          yValue: ev.vix + 3,
+          yValue: ev.vix + 4,
           content: ev.label.split('\n'),
-          color: c.text2,
-          font: { family: "'Space Mono', monospace", size: 7, weight: 'normal' },
+          color: '#ffffff',
+          backgroundColor: ev.color + 'cc',
+          borderRadius: 3,
+          padding: { x: 4, y: 3 },
+          font: { family: "'Space Mono', monospace", size: 7, weight: 'bold' },
           textAlign: 'center',
-          backgroundColor: 'transparent',
           borderWidth: 0,
         };
       });
@@ -737,7 +834,7 @@
         data: {
           labels: mSlice,
           datasets: [
-            { data: vixSlice, backgroundColor: vixSlice.map(v => v<20?'rgba(110,206,138,0.25)':v<30?'rgba(239,159,39,0.35)':'rgba(226,114,74,0.5)'), borderColor: vixSlice.map(v => v<20?'#6ECE8A':v<30?'#EF9F27':'#E2724A'), borderWidth: 0.5, borderRadius: 1, borderSkipped: false },
+            { data: vixSlice, backgroundColor: vixSlice.map(v => v<20?'rgba(110,206,138,0.3)':v<30?'rgba(239,159,39,0.4)':'rgba(226,114,74,0.55)'), borderColor: vixSlice.map(v => v<20?'#6ECE8A':v<30?'#EF9F27':'#E2724A'), borderWidth: 0.5, borderRadius: 2, borderSkipped: false },
             { type: 'line', label: 'VIX', data: vixSlice, borderColor: '#E2724A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false }
           ]
         },
@@ -751,7 +848,7 @@
           },
           scales: {
             x: { grid: { display: false }, border: { display: false }, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: (_, i) => tickLabels[i] || null, autoSkip: false, maxRotation: 0 } },
-            y: { grid: { color: c.grid }, border: { display: false }, min: 0, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0) } }
+            y: { grid: { color: c.grid }, border: { display: false }, min: 0, max: Math.max(...vixSlice) < 40 ? 45 : 90, ticks: { color: c.text, font: { ...monoFont, size: 9 }, callback: v => v.toFixed(0) } }
           }
         }
       });
